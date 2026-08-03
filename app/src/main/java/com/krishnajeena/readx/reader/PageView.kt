@@ -55,10 +55,8 @@ fun PageView(
     searchMatchesOnPage: List<PdfSearchMatch>,
     activeMatchOnPage: PdfSearchMatch?,
     showGlyphBoxes: Boolean,
-    onCopy: (String) -> Unit,
     currentScale: Float = 1f,
-    highlightsOnPage: List<Highlight> = emptyList(),
-    onShowAiDialog: (String) -> Unit = {}
+    highlightsOnPage: List<Highlight> = emptyList()
 ) {
 
     var renderedPage by remember(pageIndex) { mutableStateOf<PdfRenderedPage?>(null) }
@@ -197,9 +195,7 @@ fun PageView(
                             selectionState = selectionState,
                             pageWidthPts = pageWidthPts,
                             viewModel = viewModel,
-                            onCopy = onCopy,
-                            currentScale = currentScale,
-                            onShowAiDialog = onShowAiDialog
+                            currentScale = currentScale
                         )
                     }
 

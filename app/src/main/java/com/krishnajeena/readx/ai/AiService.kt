@@ -30,8 +30,69 @@ class AiService {
         apiKey: String,
         model: String
     ): Result<String> = when (provider) {
+        AiProvider.GROQ -> promptOpenAiCompatible(GROQ_API_URL, systemPrompt, userText, apiKey, model, "Groq")
         AiProvider.GEMINI -> promptGemini(systemPrompt, userText, apiKey, model)
+        AiProvider.OPENAI -> promptOpenAiCompatible(OPENAI_API_URL, systemPrompt, userText, apiKey, model, "OpenAI")
         AiProvider.ANTHROPIC -> promptAnthropic(systemPrompt, userText, apiKey, model)
+    }
+
+    private suspend fun promptOpenAiCompatible(
+        apiUrl: String,
+        systemPrompt: String,
+        userText: String,
+        apiKey: String,
+        model: String,
+        providerName: String
+    ): Result<String> = withContext(Dispatchers.IO) {
+        runCatching {
+            val body = JSONObject().apply {
+                put("model", model)
+                put("messages", JSONArray().apply {
+                    if (systemPrompt.isNotBlank()) {
+                        put(JSONObject().apply {
+                            put("role", "system")
+                            put("content", systemPrompt)
+                        })
+                    }
+                    put(JSONObject().apply {
+                        put("role", "user")
+                        put("content", userText)
+                    })
+                })
+                put("temperature", 0.5)
+            }
+
+            val request = Request.Builder()
+                .url(apiUrl)
+                .addHeader("Authorization", "Bearer $apiKey")
+                .addHeader("content-type", "application/json")
+                .post(body.toString().toRequestBody(JSON_MEDIA_TYPE))
+                .build()
+
+            val response = client.newCall(request).execute()
+            val responseBody = response.body?.string() ?: throw Exception("Empty response from $providerName")
+
+            if (!response.isSuccessful) {
+                val errorJson = runCatching { JSONObject(responseBody) }.getOrNull()
+                val errorMsg = errorJson?.optJSONObject("error")?.optString("message")
+                    ?: "$providerName API error ${response.code}"
+                throw Exception(errorMsg)
+            }
+
+            val json = JSONObject(responseBody)
+            val choices = json.optJSONArray("choices")
+                ?: throw Exception("No choices returned from $providerName")
+            if (choices.length() == 0) throw Exception("Empty choices in response")
+
+            val firstChoice = choices.getJSONObject(0)
+            val message = firstChoice.optJSONObject("message")
+                ?: throw Exception("No message in response choice")
+
+            val textResult = message.optString("content", "").trim()
+            if (textResult.isBlank()) throw Exception("Empty text returned")
+
+            textResult
+        }
     }
 
     private suspend fun promptGemini(
@@ -144,6 +205,8 @@ class AiService {
     }
 
     companion object {
+        private const val GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
+        private const val OPENAI_API_URL = "https://api.openai.com/v1/chat/completions"
         private const val GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
         private const val ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
         private const val ANTHROPIC_VERSION = "2023-06-01"

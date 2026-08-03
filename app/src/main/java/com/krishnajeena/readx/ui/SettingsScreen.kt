@@ -2,12 +2,15 @@ package com.krishnajeena.readx.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -44,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import com.krishnajeena.readx.data.AiProvider
 import com.krishnajeena.readx.data.SettingsRepository
 
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
@@ -51,7 +55,9 @@ fun SettingsScreen(
     onBack: () -> Unit
 ) {
     var selectedProvider by remember { mutableStateOf(settingsRepo.getProvider()) }
+    var groqApiKey by remember { mutableStateOf(settingsRepo.getGroqApiKey() ?: "") }
     var geminiApiKey by remember { mutableStateOf(settingsRepo.getGeminiApiKey() ?: "") }
+    var openAiApiKey by remember { mutableStateOf(settingsRepo.getOpenAiApiKey() ?: "") }
     var anthropicApiKey by remember { mutableStateOf(settingsRepo.getAnthropicApiKey() ?: "") }
 
     var selectedLang by remember { mutableStateOf(settingsRepo.getTranslateLanguage()) }
@@ -65,7 +71,9 @@ fun SettingsScreen(
     var savedMessage by remember { mutableStateOf(false) }
 
     val availableModels = when (selectedProvider) {
+        AiProvider.GROQ -> SettingsRepository.GROQ_MODELS
         AiProvider.GEMINI -> SettingsRepository.GEMINI_MODELS
+        AiProvider.OPENAI -> SettingsRepository.OPENAI_MODELS
         AiProvider.ANTHROPIC -> SettingsRepository.ANTHROPIC_MODELS
     }
 
@@ -115,68 +123,133 @@ fun SettingsScreen(
                     )
 
                     // Provider Filter Chips
-                    Row(
+                    LazyRow(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        // Adds space between items
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        // Adds space at the start and end of the scrollable area
+                        contentPadding = PaddingValues(horizontal = 6.dp)
                     ) {
-                        AiProvider.entries.forEach { provider ->
+                        items(
+                            items = AiProvider.entries,
+                            key = { it.name } // Improving performance by providing a stable key
+                        ) { provider ->
                             FilterChip(
                                 selected = selectedProvider == provider,
                                 onClick = {
                                     selectedProvider = provider
-                                    selectedModel = when (provider) {
-                                        AiProvider.GEMINI -> SettingsRepository.DEFAULT_GEMINI_MODEL
-                                        AiProvider.ANTHROPIC -> SettingsRepository.DEFAULT_ANTHROPIC_MODEL
-                                    }
+                                    selectedModel = provider.defaultModel
                                 },
-                                label = { Text(if (provider == AiProvider.GEMINI) "Gemini (Free/Fast)" else "Claude") }
+                                label = {
+                                    Text(text = provider.displayName)
+                                }
                             )
                         }
                     }
 
                     // API Key Field based on Provider
-                    if (selectedProvider == AiProvider.GEMINI) {
-                        OutlinedTextField(
-                            value = geminiApiKey,
-                            onValueChange = { geminiApiKey = it.trim() },
-                            label = { Text("Google Gemini API Key (AIzaSy...)") },
-                            placeholder = { Text("Paste Google AI Studio API key") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
-                            visualTransformation = if (apiKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                            trailingIcon = {
-                                IconButton(onClick = { apiKeyVisible = !apiKeyVisible }) {
-                                    Icon(
-                                        imageVector = if (apiKeyVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                        contentDescription = "Toggle visibility"
-                                    )
+                    when (selectedProvider) {
+                        AiProvider.GROQ -> {
+                            OutlinedTextField(
+                                value = groqApiKey,
+                                onValueChange = { groqApiKey = it.trim() },
+                                label = { Text("Groq API Key (gsk_...) - Optional", style = MaterialTheme.typography.bodySmall) },
+                                placeholder = { Text("Using built-in default app key") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp),
+                                visualTransformation = if (apiKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                                trailingIcon = {
+                                    IconButton(onClick = { apiKeyVisible = !apiKeyVisible }) {
+                                        Icon(
+                                            imageVector = if (apiKeyVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                            contentDescription = "Toggle visibility"
+                                        )
+                                    }
                                 }
-                            }
-                        )
-                        Text(
-                            text = "Get a free Gemini API key at aistudio.google.com",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.secondary
-                        )
-                    } else {
-                        OutlinedTextField(
-                            value = anthropicApiKey,
-                            onValueChange = { anthropicApiKey = it.trim() },
-                            label = { Text("Anthropic API Key (sk-ant-...)") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
-                            visualTransformation = if (apiKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                            trailingIcon = {
-                                IconButton(onClick = { apiKeyVisible = !apiKeyVisible }) {
-                                    Icon(
-                                        imageVector = if (apiKeyVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                        contentDescription = "Toggle visibility"
-                                    )
+                            )
+                            Text(
+                                text = if (groqApiKey.isBlank()) "✓ Using built-in default app key. Enter custom key above to override."
+                                else "Using custom Groq API key.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.secondary
+                            )
+                        }
+                        AiProvider.GEMINI -> {
+                            OutlinedTextField(
+                                value = geminiApiKey,
+                                onValueChange = { geminiApiKey = it.trim() },
+                                label = { Text("Google Gemini API Key (AIzaSy...)") },
+                                placeholder = { Text("Paste Google AI Studio API key") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp),
+                                visualTransformation = if (apiKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                                trailingIcon = {
+                                    IconButton(onClick = { apiKeyVisible = !apiKeyVisible }) {
+                                        Icon(
+                                            imageVector = if (apiKeyVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                            contentDescription = "Toggle visibility"
+                                        )
+                                    }
                                 }
-                            }
-                        )
+                            )
+                            Text(
+                                text = "Get a free Gemini API key at aistudio.google.com",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.secondary
+                            )
+                        }
+                        AiProvider.OPENAI -> {
+                            OutlinedTextField(
+                                value = openAiApiKey,
+                                onValueChange = { openAiApiKey = it.trim() },
+                                label = { Text("OpenAI API Key (sk-proj-...)") },
+                                placeholder = { Text("Paste OpenAI API key") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp),
+                                visualTransformation = if (apiKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                                trailingIcon = {
+                                    IconButton(onClick = { apiKeyVisible = !apiKeyVisible }) {
+                                        Icon(
+                                            imageVector = if (apiKeyVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                            contentDescription = "Toggle visibility"
+                                        )
+                                    }
+                                }
+                            )
+                            Text(
+                                text = "Get an API key at platform.openai.com",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.secondary
+                            )
+                        }
+                        AiProvider.ANTHROPIC -> {
+                            OutlinedTextField(
+                                value = anthropicApiKey,
+                                onValueChange = { anthropicApiKey = it.trim() },
+                                label = { Text("Anthropic API Key (sk-ant-...)") },
+                                placeholder = { Text("Paste Anthropic API key") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp),
+                                visualTransformation = if (apiKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                                trailingIcon = {
+                                    IconButton(onClick = { apiKeyVisible = !apiKeyVisible }) {
+                                        Icon(
+                                            imageVector = if (apiKeyVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                            contentDescription = "Toggle visibility"
+                                        )
+                                    }
+                                }
+                            )
+                            Text(
+                                text = "Get an API key at console.anthropic.com",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.secondary
+                            )
+                        }
                     }
 
                     // Model Selector Dropdown & Manual Input
@@ -189,7 +262,7 @@ fun SettingsScreen(
                             onValueChange = { selectedModel = it.trim() },
                             readOnly = false,
                             label = { Text("Model Version Code") },
-                            placeholder = { Text("e.g. gemini-2.0-flash") },
+                            placeholder = { Text("e.g. llama-3.3-70b-versatile") },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modelDropdownExpanded) },
                             modifier = Modifier
                                 .menuAnchor()
@@ -261,7 +334,9 @@ fun SettingsScreen(
             Button(
                 onClick = {
                     settingsRepo.setProvider(selectedProvider)
+                    if (groqApiKey.isBlank()) settingsRepo.clearGroqApiKey() else settingsRepo.setGroqApiKey(groqApiKey)
                     if (geminiApiKey.isBlank()) settingsRepo.clearGeminiApiKey() else settingsRepo.setGeminiApiKey(geminiApiKey)
+                    if (openAiApiKey.isBlank()) settingsRepo.clearOpenAiApiKey() else settingsRepo.setOpenAiApiKey(openAiApiKey)
                     if (anthropicApiKey.isBlank()) settingsRepo.clearAnthropicApiKey() else settingsRepo.setAnthropicApiKey(anthropicApiKey)
                     settingsRepo.setTranslateLanguage(selectedLang)
                     settingsRepo.setAiModel(selectedModel)
@@ -280,11 +355,11 @@ fun SettingsScreen(
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Column(
-                    modifier = Modifier.padding(16.dp),
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text("ReadX v1.0", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                    Text("Serene Glyph PDF Reader • Vendored pdfium Engine", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Serene Book Reader", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }

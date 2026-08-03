@@ -4,7 +4,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.drag
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,7 +13,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -35,42 +33,42 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
 
 private val HighlightColor = Color(0x664285F4)
-private val HandleColor = Color(0xFF4285F4)
+private val HandleColor = Color(0xE24285F4)
 
 /**
- * Selection quads, start/end drag handles, and the floating action toolbar
- * for one page. Quads arrive in page points; everything is drawn with the
+ * Selection quads and start/end drag handles for one page.
+ * Quads arrive in page points; everything is drawn with the
  * single px-per-pt scalar.
+ *
+ * The floating action toolbar (Copy / Highlight / AI / …) is rendered
+ * separately in [ReaderScreen] as a screen-level overlay so it is never
+ * clipped by the zoom container's [clipToBounds].
  */
 @Composable
 fun SelectionOverlay(
     selectionState: SelectionUiState,
     pageWidthPts: Float,
     viewModel: ReaderViewModel,
-    onCopy: (String) -> Unit,
-    currentScale: Float = 1f,
-    onShowAiDialog: (String) -> Unit = {}
+    currentScale: Float = 1f
 ) {
-    val scope = rememberCoroutineScope()
     var boxSize by remember { mutableStateOf(IntSize.Zero) }
     val toPx = if (boxSize.width > 0) boxSize.width / pageWidthPts else 0f
 
@@ -95,13 +93,14 @@ fun SelectionOverlay(
                     val touchRadius = 28.dp.toPx()
                     val first = qs.first()
                     val last = qs.last()
+                    val hSizePx = (HANDLE_SIZE_DP * counterScale).dp.toPx()
                     val startCenter = Offset(
-                        first.left * dragScale,
-                        first.bottom * dragScale + HANDLE_RADIUS_DP.dp.toPx()
+                        first.left * dragScale - hSizePx / 2f,
+                        first.bottom * dragScale + hSizePx / 2f
                     )
                     val endCenter = Offset(
-                        last.right * dragScale,
-                        last.bottom * dragScale + HANDLE_RADIUS_DP.dp.toPx()
+                        last.right * dragScale + hSizePx / 2f,
+                        last.bottom * dragScale + hSizePx / 2f
                     )
                     val dStart = (down.position - startCenter).getDistanceSquared()
                     val dEnd = (down.position - endCenter).getDistanceSquared()
@@ -134,101 +133,60 @@ fun SelectionOverlay(
                 )
             }
             if (quads.isNotEmpty()) {
-                val r = (HANDLE_RADIUS_DP * counterScale).dp.toPx()
+                val hSizePx = (HANDLE_SIZE_DP * counterScale).dp.toPx()
+                val handleSize = Size(hSizePx, hSizePx)
+                val cornerR = CornerRadius(13.dp.toPx() * counterScale, 13.dp.toPx() * counterScale)
+
                 val first = quads.first()
                 val last = quads.last()
 
-                val c1 = Offset(first.left * scale, first.bottom * scale + r)
-                val c2 = Offset(last.right * scale, last.bottom * scale + r)
-                val shadowOffset = Offset(0f, 2.dp.toPx())
+                // ── START HANDLE (3 rounded corners, sharp top-right corner at selection start) ──
+                val startX = first.left * scale
+                val startBottomY = first.bottom * scale
+                val startSquareTopLeft = Offset(startX - handleSize.width, startBottomY)
 
-                // Start Handle (perky halo + primary circle + white inner core)
-                drawCircle(color = Color(0x40000000), radius = r + 3.dp.toPx(), center = c1 + shadowOffset)
-                drawCircle(color = HandleColor, radius = r, center = c1)
-                drawCircle(color = Color.White, radius = r * 0.45f, center = c1)
-
-                // End Handle (perky halo + primary circle + white inner core)
-                drawCircle(color = Color(0x40000000), radius = r + 3.dp.toPx(), center = c2 + shadowOffset)
-                drawCircle(color = HandleColor, radius = r, center = c2)
-                drawCircle(color = Color.White, radius = r * 0.45f, center = c2)
-            }
-        }
-
-        var showInlineAi by remember { mutableStateOf(false) }
-
-        if (toPx > 0f && quads.isNotEmpty()) {
-            Column(
-                modifier = Modifier
-                    .offset {
-                        val margin = 12.dp.toPx()
-                        val edge = 8.dp.toPx()
-                        val firstQuad = quads.first()
-
-                        val startX = firstQuad.left * toPx
-                        val startY = firstQuad.top * toPx
-
-                        val maxX = (boxSize.width - 280.dp.toPx() - edge).coerceAtLeast(edge)
-                        val x = (startX - 20.dp.toPx()).coerceIn(edge, maxX)
-
-                        val desiredY = startY - 48.dp.toPx() - margin
-                        val y = if (desiredY >= edge) desiredY
-                        else (quads.last().bottom * toPx + margin).coerceIn(edge, (boxSize.height - 100.dp.toPx()).coerceAtLeast(edge))
-
-                        IntOffset(x.roundToInt(), y.roundToInt())
-                    }
-                    .graphicsLayer {
-                        scaleX = counterScale
-                        scaleY = counterScale
-                        transformOrigin = TransformOrigin(0f, 0f)
-                    }
-            ) {
-                SelectionToolbar(
-                    selectionState = selectionState,
-                    boxSize = boxSize,
-                    toPx = toPx,
-                    counterScale = 1f,
-                    onCopy = {
-                        val selection = selectionState.selection
-                        scope.launch {
-                            onCopy(viewModel.textFor(selection))
-                            viewModel.clearSelection()
-                        }
-                    },
-                    onHighlight = {
-                        viewModel.highlightSelection()
-                    },
-                    onAi = {
-                        showInlineAi = !showInlineAi
-                    },
-                    onSelectAll = { viewModel.selectAllOnPage(selectionState.selection.pageIndex) },
-                    onCancel = {
-                        showInlineAi = false
-                        viewModel.clearSelection()
-                    }
-                )
-
-                if (showInlineAi) {
-                    InlineAiCard(
-                        selectionState = selectionState,
-                        viewModel = viewModel,
-                        onClose = { showInlineAi = false },
-                        onNavigateToSettings = {
-                            showInlineAi = false
-                            onShowAiDialog("")
-                        }
+                val startPath = Path().apply {
+                    addRoundRect(
+                        RoundRect(
+                            rect = Rect(startSquareTopLeft, handleSize),
+                            topLeft = cornerR,
+                            topRight = CornerRadius.Zero, // sharp top-right corner touching selection start
+                            bottomRight = cornerR,
+                            bottomLeft = cornerR
+                        )
                     )
                 }
+                drawPath(startPath, color = HandleColor)
+
+                // ── END HANDLE (3 rounded corners, sharp top-left corner at selection end) ──
+                val endX = last.right * scale
+                val endBottomY = last.bottom * scale
+                val endSquareTopLeft = Offset(endX, endBottomY)
+
+                val endPath = Path().apply {
+                    addRoundRect(
+                        RoundRect(
+                            rect = Rect(endSquareTopLeft, handleSize),
+                            topLeft = CornerRadius.Zero, // sharp top-left corner touching selection end
+                            topRight = cornerR,
+                            bottomRight = cornerR,
+                            bottomLeft = cornerR
+                        )
+                    )
+                }
+                drawPath(endPath, color = HandleColor)
             }
         }
     }
 }
 
+/**
+ * The floating action toolbar shown above or below a text selection.
+ * Rendered as a screen-level overlay in [ReaderScreen], outside the zoom
+ * container, so it is never clipped.
+ */
 @Composable
-private fun SelectionToolbar(
-    selectionState: SelectionUiState,
-    boxSize: IntSize,
-    toPx: Float,
-    counterScale: Float,
+fun SelectionToolbar(
     onCopy: () -> Unit,
     onHighlight: () -> Unit,
     onAi: () -> Unit,
@@ -326,6 +284,77 @@ private fun SelectionToolbar(
     }
 }
 
-private const val HANDLE_RADIUS_DP = 11f
+private const val HANDLE_SIZE_DP = 21f
 
+@Preview(
+    showBackground = true,
+    backgroundColor = 0xFFFFFFFF,
+    widthDp = 380,
+    heightDp = 180,
+    name = "Square Selection Handles Preview"
+)
+@Composable
+private fun SelectionHandlesPreview() {
+    MaterialTheme {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(20.dp)
+        ) {
+            Text(
+                text = "Sample text showing square selection handles in Android Studio preview mode.",
+                style = MaterialTheme.typography.bodyLarge
+            )
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val handleSize = Size(14.dp.toPx(), 14.dp.toPx())
 
+                val startQuadTopLeft = Offset(6.dp.toPx(), 2.dp.toPx())
+                val startQuadSize = Size(185.dp.toPx(), 24.dp.toPx())
+
+                val endQuadTopLeft = Offset(6.dp.toPx(), 30.dp.toPx())
+                val endQuadSize = Size(150.dp.toPx(), 24.dp.toPx())
+
+                // Draw highlighted text selection background
+                drawRect(color = HighlightColor, topLeft = startQuadTopLeft, size = startQuadSize, blendMode = BlendMode.Multiply)
+                drawRect(color = HighlightColor, topLeft = endQuadTopLeft, size = endQuadSize, blendMode = BlendMode.Multiply)
+
+                // ── START HANDLE (3 rounded corners, sharp top-right corner at selection start point) ──
+                val startX = startQuadTopLeft.x
+                val startBottomY = startQuadTopLeft.y + startQuadSize.height
+                val startSquareTopLeft = Offset(startX - handleSize.width, startBottomY)
+
+                val cornerR = CornerRadius(9.dp.toPx(), 9.dp.toPx())
+                val startPath = Path().apply {
+                    addRoundRect(
+                        RoundRect(
+                            rect = Rect(startSquareTopLeft, handleSize),
+                            topLeft = cornerR,
+                            topRight = CornerRadius.Zero, // sharp top-right corner at selection point
+                            bottomRight = cornerR,
+                            bottomLeft = cornerR
+                        )
+                    )
+                }
+                drawPath(startPath, color = HandleColor)
+
+                // ── END HANDLE (3 rounded corners, sharp top-left corner at selection end point) ──
+                val endX = endQuadTopLeft.x + endQuadSize.width
+                val endBottomY = endQuadTopLeft.y + endQuadSize.height
+                val endSquareTopLeft = Offset(endX, endBottomY)
+
+                val endPath = Path().apply {
+                    addRoundRect(
+                        RoundRect(
+                            rect = Rect(endSquareTopLeft, handleSize),
+                            topLeft = CornerRadius.Zero, // sharp top-left corner at selection point
+                            topRight = cornerR,
+                            bottomRight = cornerR,
+                            bottomLeft = cornerR
+                        )
+                    )
+                }
+                drawPath(endPath, color = HandleColor)
+            }
+        }
+    }
+}

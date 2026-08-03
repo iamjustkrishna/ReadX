@@ -470,7 +470,7 @@ private fun HomeScreen(
                     }
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "Glyph-exact PDF Reader • AI Assistant • Smart Notes",
+                        text = "Book Reader • AI Assistant • Smart Notes",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
