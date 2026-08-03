@@ -21,8 +21,11 @@ dependencyResolutionManagement {
         google()
         mavenCentral()
         maven { url= URI("https://jitpack.io") }
+        maven { url= URI("https://repository.liferay.com/nexus/content/repositories/public") }
+        gradlePluginPortal()
     }
 }
 
 rootProject.name = "ReadX"
 include(":app")
+include(":pdfengine")

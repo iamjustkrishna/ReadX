@@ -2,10 +2,15 @@ package com.krishnajeena.readx.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val Purple80 = Color(0xFFD0BCFF)
-val PurpleGrey80 = Color(0xFFCCC2DC)
-val Pink80 = Color(0xFFEFB8C8)
+// Calm & Friendly Warm Paper Palette
+val WarmPaperBackground = Color(0xFFF9F7F2)
+val WarmPaperSurface = Color(0xFFFFFFFF)
+val WarmPaperSurfaceVariant = Color(0xFFF2EEE7)
 
-val Purple40 = Color(0xFF6650a4)
-val PurpleGrey40 = Color(0xFF625b71)
-val Pink40 = Color(0xFF7D5260)
+val SereneSlatePrimary = Color(0xFF2D3748)
+val SereneTealSecondary = Color(0xFF319795)
+val WarmGoldAccent = Color(0xFFD69E2E)
+
+val DarkBackground = Color(0xFF1A202C)
+val DarkSurface = Color(0xFF2D3748)
+val DarkSurfaceVariant = Color(0xFF3A475A)

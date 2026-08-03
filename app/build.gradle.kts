@@ -40,9 +40,12 @@ android {
         compose = true
     }
     composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.1"
+        kotlinCompilerExtensionVersion = "1.5.14"
     }
     packaging {
+        jniLibs {
+            useLegacyPackaging = false
+        }
         resources {
             excludes += "/META-INF/DEPENDENCIES"
             excludes += "/META-INF/LICENSE"
@@ -56,6 +59,8 @@ android {
 }
 
 dependencies {
+
+    implementation(project(":pdfengine"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
@@ -74,23 +79,17 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 
-
-
-    implementation("androidx.appcompat:appcompat:1.7.0")
-
-    implementation ("com.github.atwa:filepicker:2.0.0")
-
-    implementation("io.coil-kt.coil3:coil-compose:3.0.2")
-
-
-    implementation("net.engawapg.lib:zoomable:1.6.2")
-
-    implementation("com.tom-roush:pdfbox-android:2.0.27.0")
-
-    implementation("com.google.accompanist:accompanist-permissions:0.36.0")
-
-    implementation ("androidx.navigation:navigation-compose:2.7.3")
-
     implementation("androidx.core:core-splashscreen:1.0.1")
 
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.4")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.4")
+
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("androidx.compose.material:material-icons-extended")
 }
+
+

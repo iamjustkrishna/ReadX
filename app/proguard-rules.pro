@@ -19,3 +19,6 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# JNI: pdfium bridge methods are resolved by name at runtime.
+-keepclasseswithmembers class com.krishnajeena.pdfengine.NativePdfBridge { native <methods>; }
