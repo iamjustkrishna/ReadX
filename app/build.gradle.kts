@@ -14,12 +14,12 @@ val groqApiKey = localProperties.getProperty("GROQ_API_KEY") ?: ""
 
 android {
     namespace = "com.krishnajeena.readx"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.krishnajeena.readx"
         minSdk = 24
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0"
 
