@@ -14,10 +14,10 @@ ReadX is a modern, fast, and serene Android PDF reader built from scratch with J
 - **Search-Augmented Keyword Retrieval**: Ask questions about any PDF regardless of its length. ReadX uses an intelligent in-memory keyword and proximity ranking engine to find the most relevant pages and feed them into the AI context without draining your battery or storage with heavy local vector databases.
 - **Page Citations**: Answers cite exact page sources so you can jump directly to where the information lives.
 - **Multi-Provider AI**: Connect with your choice of AI provider:
-  - Groq (Default: ultra-fast responses powered by LPUs)
-  - Google Gemini (Gemini 2.0 Flash and 1.5 Pro)
-  - OpenAI (GPT-4o mini and GPT-4o)
-  - Anthropic (Claude 3.5 Sonnet and Haiku)
+  - Groq (Default: Llama 3.3 70B, Llama 3.1 8B, DeepSeek R1 Distill 70B)
+  - Google Gemini (Gemini 2.5 Flash, Gemini 2.5 Pro, and Gemini 2.0 Flash)
+  - OpenAI (GPT-4o mini, GPT-4o, and o3-mini)
+  - Anthropic (Claude 3.5 Sonnet, Claude 3.5 Haiku, and Claude 3 Opus)
 
 ### 3. Real Reading Analytics
 - **Live Tracking**: Measures real time spent reading each day, tracking unique pages turned and completed books.

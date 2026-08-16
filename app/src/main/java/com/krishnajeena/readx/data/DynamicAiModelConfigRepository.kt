@@ -137,7 +137,7 @@ class DynamicAiModelConfigRepository(context: Context) {
 
         fun getHardcodedDefaultModel(provider: AiProvider): String = when (provider) {
             AiProvider.GROQ -> "llama-3.3-70b-versatile"
-            AiProvider.GEMINI -> "gemini-2.0-flash"
+            AiProvider.GEMINI -> "gemini-2.5-flash"
             AiProvider.OPENAI -> "gpt-4o-mini"
             AiProvider.ANTHROPIC -> "claude-3-5-sonnet-20241022"
         }
@@ -146,24 +146,26 @@ class DynamicAiModelConfigRepository(context: Context) {
             AiProvider.GROQ -> listOf(
                 "llama-3.3-70b-versatile" to "Llama 3.3 70B (Fast & Intelligent)",
                 "llama-3.1-8b-instant" to "Llama 3.1 8B Instant (Ultra Fast)",
-                "openai/gpt-oss-120b" to "GPT OSS 120B (High Reasoning)",
+                "deepseek-r1-distill-llama-70b" to "DeepSeek R1 Distill 70B (Reasoning)",
                 "mixtral-8x7b-32768" to "Mixtral 8x7B (Large Context)",
                 "gemma2-9b-it" to "Gemma 2 9B"
             )
             AiProvider.GEMINI -> listOf(
-                "gemini-2.0-flash" to "Gemini 2.0 Flash (Fastest & Free Tier)",
-                "gemini-1.5-flash" to "Gemini 1.5 Flash (Balanced)",
-                "gemini-1.5-pro" to "Gemini 1.5 Pro (Deep Reasoning)"
+                "gemini-2.5-flash" to "Gemini 2.5 Flash (Fastest & Free Tier)",
+                "gemini-2.5-pro" to "Gemini 2.5 Pro (Deep Analysis)",
+                "gemini-2.0-flash" to "Gemini 2.0 Flash",
+                "gemini-1.5-flash" to "Gemini 1.5 Flash (Legacy)"
             )
             AiProvider.OPENAI -> listOf(
-                "gpt-4o-mini" to "GPT-4o mini (Fast & Cost-Efficient)",
+                "gpt-4o-mini" to "GPT-4o mini (Fast & Efficient)",
                 "gpt-4o" to "GPT-4o (Flagship Multimodal)",
+                "o3-mini" to "OpenAI o3-mini (High Speed Reasoning)",
                 "gpt-3.5-turbo" to "GPT-3.5 Turbo (Legacy)"
             )
             AiProvider.ANTHROPIC -> listOf(
                 "claude-3-5-sonnet-20241022" to "Claude 3.5 Sonnet (State of the Art)",
                 "claude-3-5-haiku-20241022" to "Claude 3.5 Haiku (Fast & Lightweight)",
-                "claude-3-opus-20240229" to "Claude 3 Opus (Complex Analysis)"
+                "claude-3-opus-20240229" to "Claude 3 Opus (Deep Analysis)"
             )
         }
     }
