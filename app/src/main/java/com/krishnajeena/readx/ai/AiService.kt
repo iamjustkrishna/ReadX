@@ -11,8 +11,14 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
+data class AiChatMessage(
+    val role: String, // "user" or "assistant"
+    val content: String,
+    val referencedPages: List<Int> = emptyList()
+)
+
 /**
- * Lightweight multi-provider API client for Google Gemini and Anthropic Claude.
+ * Multi-provider API client for Google Gemini, Groq, OpenAI, and Anthropic Claude.
  * Uses raw OkHttp to avoid external SDK bloat.
  */
 class AiService {
@@ -36,10 +42,39 @@ class AiService {
         AiProvider.ANTHROPIC -> promptAnthropic(systemPrompt, userText, apiKey, model)
     }
 
+    suspend fun chat(
+        provider: AiProvider,
+        systemPrompt: String,
+        messages: List<AiChatMessage>,
+        apiKey: String,
+        model: String
+    ): Result<String> = when (provider) {
+        AiProvider.GROQ -> chatOpenAiCompatible(GROQ_API_URL, systemPrompt, messages, apiKey, model, "Groq")
+        AiProvider.GEMINI -> chatGemini(systemPrompt, messages, apiKey, model)
+        AiProvider.OPENAI -> chatOpenAiCompatible(OPENAI_API_URL, systemPrompt, messages, apiKey, model, "OpenAI")
+        AiProvider.ANTHROPIC -> chatAnthropic(systemPrompt, messages, apiKey, model)
+    }
+
     private suspend fun promptOpenAiCompatible(
         apiUrl: String,
         systemPrompt: String,
         userText: String,
+        apiKey: String,
+        model: String,
+        providerName: String
+    ): Result<String> = chatOpenAiCompatible(
+        apiUrl,
+        systemPrompt,
+        listOf(AiChatMessage("user", userText)),
+        apiKey,
+        model,
+        providerName
+    )
+
+    private suspend fun chatOpenAiCompatible(
+        apiUrl: String,
+        systemPrompt: String,
+        messages: List<AiChatMessage>,
         apiKey: String,
         model: String,
         providerName: String
@@ -54,10 +89,12 @@ class AiService {
                             put("content", systemPrompt)
                         })
                     }
-                    put(JSONObject().apply {
-                        put("role", "user")
-                        put("content", userText)
-                    })
+                    for (msg in messages) {
+                        put(JSONObject().apply {
+                            put("role", if (msg.role == "user") "user" else "assistant")
+                            put("content", msg.content)
+                        })
+                    }
                 })
                 put("temperature", 0.5)
             }
@@ -100,22 +137,39 @@ class AiService {
         userText: String,
         apiKey: String,
         model: String
+    ): Result<String> = chatGemini(
+        systemPrompt,
+        listOf(AiChatMessage("user", userText)),
+        apiKey,
+        model
+    )
+
+    private suspend fun chatGemini(
+        systemPrompt: String,
+        messages: List<AiChatMessage>,
+        apiKey: String,
+        model: String
     ): Result<String> = withContext(Dispatchers.IO) {
         runCatching {
             val url = "$GEMINI_BASE_URL/$model:generateContent?key=$apiKey"
 
             val body = JSONObject().apply {
-                put("system_instruction", JSONObject().apply {
-                    put("parts", JSONArray().apply {
-                        put(JSONObject().put("text", systemPrompt))
-                    })
-                })
-                put("contents", JSONArray().apply {
-                    put(JSONObject().apply {
+                if (systemPrompt.isNotBlank()) {
+                    put("system_instruction", JSONObject().apply {
                         put("parts", JSONArray().apply {
-                            put(JSONObject().put("text", userText))
+                            put(JSONObject().put("text", systemPrompt))
                         })
                     })
+                }
+                put("contents", JSONArray().apply {
+                    for (msg in messages) {
+                        put(JSONObject().apply {
+                            put("role", if (msg.role == "user") "user" else "model")
+                            put("parts", JSONArray().apply {
+                                put(JSONObject().put("text", msg.content))
+                            })
+                        })
+                    }
                 })
             }
 
@@ -161,17 +215,33 @@ class AiService {
         userText: String,
         apiKey: String,
         model: String
+    ): Result<String> = chatAnthropic(
+        systemPrompt,
+        listOf(AiChatMessage("user", userText)),
+        apiKey,
+        model
+    )
+
+    private suspend fun chatAnthropic(
+        systemPrompt: String,
+        messages: List<AiChatMessage>,
+        apiKey: String,
+        model: String
     ): Result<String> = withContext(Dispatchers.IO) {
         runCatching {
             val body = JSONObject().apply {
                 put("model", model)
                 put("max_tokens", 1024)
-                put("system", systemPrompt)
+                if (systemPrompt.isNotBlank()) {
+                    put("system", systemPrompt)
+                }
                 put("messages", JSONArray().apply {
-                    put(JSONObject().apply {
-                        put("role", "user")
-                        put("content", userText)
-                    })
+                    for (msg in messages) {
+                        put(JSONObject().apply {
+                            put("role", if (msg.role == "user") "user" else "assistant")
+                            put("content", msg.content)
+                        })
+                    }
                 })
             }
 

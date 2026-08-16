@@ -24,13 +24,17 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 sealed interface ReaderUiState {
-    data class Home(val recent: RecentDocument?) : ReaderUiState
+    data class Home(val recent: RecentDocument?, val recentList: List<RecentDocument> = emptyList()) : ReaderUiState
     data object Loading : ReaderUiState
     data class Document(val document: PdfDocumentHandle) : ReaderUiState
     data class Error(val message: String) : ReaderUiState
 }
 
-data class RecentDocument(val uri: Uri, val displayName: String)
+data class RecentDocument(
+    val uri: Uri,
+    val displayName: String,
+    val lastOpened: Long = System.currentTimeMillis()
+)
 
 data class SelectionUiState(
     val selection: TextSelection,
@@ -46,7 +50,6 @@ data class SearchUiState(
     val activeMatch: PdfSearchMatch? get() = matches.getOrNull(activeIndex)
 }
 
-/** AI action result state. */
 data class AiResultState(
     val isLoading: Boolean = false,
     val result: String? = null,
@@ -54,11 +57,22 @@ data class AiResultState(
     val selectedText: String = ""
 )
 
+data class AiChatSessionState(
+    val documentUri: Uri,
+    val documentTitle: String,
+    val pageCount: Int,
+    val messages: List<com.krishnajeena.readx.ai.AiChatMessage> = emptyList(),
+    val isLoading: Boolean = false,
+    val error: String? = null
+)
+
 class ReaderViewModel(application: Application) : AndroidViewModel(application) {
 
     private val engine = NativePdfDocumentEngine()
     val highlightRepo = HighlightRepository(application)
     val settingsRepo = SettingsRepository(application)
+    val analyticsRepo = com.krishnajeena.readx.data.ReadingAnalyticsRepository(application)
+    val weeklyStats = analyticsRepo.weeklyStats
     private val aiService = AiService()
 
     private val pdfScanner = com.krishnajeena.readx.data.PdfScanner(application)
@@ -66,7 +80,7 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
     private val _scannedPdfs = MutableStateFlow<List<com.krishnajeena.readx.data.ScannedPdf>>(emptyList())
     val scannedPdfs: StateFlow<List<com.krishnajeena.readx.data.ScannedPdf>> = _scannedPdfs.asStateFlow()
 
-    private val _uiState = MutableStateFlow<ReaderUiState>(ReaderUiState.Home(loadRecent()))
+    private val _uiState = MutableStateFlow<ReaderUiState>(ReaderUiState.Home(loadRecent(), loadRecentList()))
     val uiState: StateFlow<ReaderUiState> = _uiState.asStateFlow()
 
     private val _selection = MutableStateFlow<SelectionUiState?>(null)
@@ -80,6 +94,12 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
 
     private val _aiResult = MutableStateFlow(AiResultState())
     val aiResult: StateFlow<AiResultState> = _aiResult.asStateFlow()
+
+    private val _aiChatSession = MutableStateFlow<AiChatSessionState?>(null)
+    val aiChatSession: StateFlow<AiChatSessionState?> = _aiChatSession.asStateFlow()
+
+    private val contextRetriever = com.krishnajeena.readx.ai.DocumentContextRetriever()
+    private var aiChatDocHandle: PdfDocumentHandle? = null
 
     private val _jumpToPage = MutableStateFlow<Int?>(null)
     val jumpToPage: StateFlow<Int?> = _jumpToPage.asStateFlow()
@@ -95,11 +115,37 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
         _jumpToPage.value = null
     }
 
-
     /** Word the initial long-press landed on; anchors word-granular drag expansion. */
     private var anchorWordRange: IntRange? = null
     private var selectionJob: Job? = null
     private var currentDocUri: String? = null
+
+    // Session tracking for real-time analytics
+    private var sessionStartTime: Long? = null
+    private val sessionVisitedPages = mutableSetOf<Int>()
+    private var isBookFinishedRecorded = false
+
+    fun onPageVisible(pageIndex: Int, totalPages: Int) {
+        sessionVisitedPages.add(pageIndex)
+        if (totalPages > 0 && pageIndex >= totalPages - 1) {
+            isBookFinishedRecorded = true
+        }
+    }
+
+    fun flushReadingSession() {
+        val start = sessionStartTime ?: return
+        val durationSeconds = ((System.currentTimeMillis() - start) / 1000).coerceAtLeast(0L)
+        val pagesCount = sessionVisitedPages.size
+        val completedUri = if (isBookFinishedRecorded) currentDocUri else null
+
+        if (durationSeconds > 2 || pagesCount > 0 || completedUri != null) {
+            analyticsRepo.logReadingSession(durationSeconds, pagesCount, completedUri)
+        }
+
+        sessionStartTime = null
+        sessionVisitedPages.clear()
+        isBookFinishedRecorded = false
+    }
 
     fun scanDevicePdfs() {
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
@@ -107,7 +153,6 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
             _scannedPdfs.value = pdfs
         }
     }
-
 
     private val document: PdfDocumentHandle?
         get() = (_uiState.value as? ReaderUiState.Document)?.document
@@ -121,6 +166,9 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
             engine.open(PdfSource.Document(uri, context, name)).fold(
                 onSuccess = { handle ->
                     currentDocUri = uri.toString()
+                    sessionStartTime = System.currentTimeMillis()
+                    sessionVisitedPages.clear()
+                    isBookFinishedRecorded = false
                     saveRecent(RecentDocument(uri, name))
                     highlightRepo.loadForDocument(uri.toString())
                     _uiState.value = ReaderUiState.Document(handle)
@@ -133,17 +181,23 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun closeDocument(returnHome: Boolean = true) {
+        flushReadingSession()
         document?.close()
         clearSelection()
         _search.value = SearchUiState()
         highlightRepo.clear()
         currentDocUri = null
         clearAiResult()
-        if (returnHome) _uiState.value = ReaderUiState.Home(loadRecent())
+        if (returnHome) {
+            analyticsRepo.refreshStats()
+            _uiState.value = ReaderUiState.Home(loadRecent(), loadRecentList())
+        }
     }
 
     fun backToHome() {
-        _uiState.value = ReaderUiState.Home(loadRecent())
+        flushReadingSession()
+        analyticsRepo.refreshStats()
+        _uiState.value = ReaderUiState.Home(loadRecent(), loadRecentList())
     }
 
     fun toggleGlyphBoxes() {
@@ -397,6 +451,117 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
         runAiAction(selectedText, AiService.PROMPT_CUSTOM_PREFIX + customPrompt, contextText)
     }
 
+    // ------------------------------------------------------------------
+    // Document AI Chat
+    // ------------------------------------------------------------------
+
+    fun startAiChat(uri: Uri, title: String) {
+        viewModelScope.launch {
+            _aiChatSession.value = AiChatSessionState(
+                documentUri = uri,
+                documentTitle = title,
+                pageCount = 0,
+                isLoading = true
+            )
+            val context = getApplication<Application>()
+            engine.open(PdfSource.Document(uri, context, title)).fold(
+                onSuccess = { handle ->
+                    aiChatDocHandle?.close()
+                    aiChatDocHandle = handle
+                    contextRetriever.clearCache()
+                    _aiChatSession.value = AiChatSessionState(
+                        documentUri = uri,
+                        documentTitle = title,
+                        pageCount = handle.pageCount,
+                        messages = listOf(
+                            com.krishnajeena.readx.ai.AiChatMessage(
+                                role = "assistant",
+                                content = "Hi! I'm your AI assistant for \"$title\". Ask me anything about this document—I can summarize chapters, explain concepts, find key takeaways, or test your understanding."
+                            )
+                        ),
+                        isLoading = false
+                    )
+                },
+                onFailure = { error ->
+                    _aiChatSession.value = AiChatSessionState(
+                        documentUri = uri,
+                        documentTitle = title,
+                        pageCount = 0,
+                        isLoading = false,
+                        error = error.message ?: "Failed to load document for AI Chat."
+                    )
+                }
+            )
+        }
+    }
+
+    fun sendAiChatMessage(userMessage: String) {
+        val currentSession = _aiChatSession.value ?: return
+        if (userMessage.isBlank() || currentSession.isLoading) return
+
+        val userChatMessage = com.krishnajeena.readx.ai.AiChatMessage(role = "user", content = userMessage)
+        val updatedMessages = currentSession.messages + userChatMessage
+        _aiChatSession.value = currentSession.copy(messages = updatedMessages, isLoading = true, error = null)
+
+        viewModelScope.launch {
+            val handle = aiChatDocHandle
+            val retrieved = if (handle != null) {
+                contextRetriever.retrieveContext(handle, userMessage, maxPages = 4)
+            } else {
+                com.krishnajeena.readx.ai.RetrievedContext("", emptyList())
+            }
+
+            val provider = settingsRepo.getProvider()
+            val apiKey = settingsRepo.getActiveApiKey()
+            val model = settingsRepo.getAiModel()
+
+            if (apiKey.isNullOrBlank()) {
+                _aiChatSession.value = _aiChatSession.value?.copy(
+                    isLoading = false,
+                    error = "Please configure your ${provider.displayName} API key in AI Settings first."
+                )
+                return@launch
+            }
+
+            val systemPrompt = """
+                You are ReadX AI Assistant analyzing the PDF document '${currentSession.documentTitle}'.
+                Use the following extracted excerpts from the document to answer the user's question accurately.
+                Cite the page number like [Page X] when referencing facts from the text.
+                If the excerpts do not contain the answer, answer based on general knowledge but state that it's outside the provided excerpt.
+
+                ${retrieved.contextPrompt}
+            """.trimIndent()
+
+            aiService.chat(provider, systemPrompt, updatedMessages, apiKey, model).fold(
+                onSuccess = { responseText ->
+                    val assistantMsg = com.krishnajeena.readx.ai.AiChatMessage(
+                        role = "assistant",
+                        content = responseText,
+                        referencedPages = retrieved.referencedPages
+                    )
+                    _aiChatSession.value = _aiChatSession.value?.copy(
+                        messages = updatedMessages + assistantMsg,
+                        isLoading = false,
+                        error = null
+                    )
+                },
+                onFailure = { err ->
+                    _aiChatSession.value = _aiChatSession.value?.copy(
+                        isLoading = false,
+                        error = err.message ?: "Failed to generate AI response."
+                    )
+                }
+            )
+        }
+    }
+
+    fun closeAiChat() {
+        aiChatDocHandle?.close()
+        aiChatDocHandle = null
+        contextRetriever.clearCache()
+        _aiChatSession.value = null
+    }
+
 
     // ------------------------------------------------------------------
     // Recents
@@ -406,16 +571,58 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
         getApplication<Application>().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     private fun loadRecent(): RecentDocument? {
+        return loadRecentList().firstOrNull()
+    }
+
+    fun loadRecentList(): List<RecentDocument> {
         val prefs = prefs()
-        val uri = prefs.getString(PREF_RECENT_URI, null)?.let(Uri::parse) ?: return null
-        val name = prefs.getString(PREF_RECENT_NAME, null) ?: return null
-        return RecentDocument(uri, name)
+        val raw = prefs.getString(PREF_RECENT_LIST, null)
+        if (!raw.isNullOrBlank()) {
+            val list = runCatching {
+                val jsonArray = org.json.JSONArray(raw)
+                val items = mutableListOf<RecentDocument>()
+                for (i in 0 until jsonArray.length()) {
+                    val obj = jsonArray.getJSONObject(i)
+                    val uriStr = obj.optString("uri")
+                    val name = obj.optString("name")
+                    val time = obj.optLong("time", System.currentTimeMillis())
+                    if (uriStr.isNotBlank() && name.isNotBlank()) {
+                        items.add(RecentDocument(Uri.parse(uriStr), name, time))
+                    }
+                }
+                items
+            }.getOrNull()
+            if (!list.isNullOrEmpty()) return list
+        }
+
+        val fallbackUri = prefs.getString(PREF_RECENT_URI, null)?.let(Uri::parse)
+        val fallbackName = prefs.getString(PREF_RECENT_NAME, null)
+        return if (fallbackUri != null && fallbackName != null) {
+            listOf(RecentDocument(fallbackUri, fallbackName))
+        } else {
+            emptyList()
+        }
     }
 
     private fun saveRecent(recent: RecentDocument) {
+        val currentList = loadRecentList().toMutableList()
+        currentList.removeAll { it.uri.toString() == recent.uri.toString() }
+        currentList.add(0, recent)
+        val trimmed = currentList.take(15)
+
+        val jsonArray = org.json.JSONArray()
+        for (item in trimmed) {
+            val obj = org.json.JSONObject()
+            obj.put("uri", item.uri.toString())
+            obj.put("name", item.displayName)
+            obj.put("time", item.lastOpened)
+            jsonArray.put(obj)
+        }
+
         prefs().edit()
             .putString(PREF_RECENT_URI, recent.uri.toString())
             .putString(PREF_RECENT_NAME, recent.displayName)
+            .putString(PREF_RECENT_LIST, jsonArray.toString())
             .apply()
     }
 
@@ -432,6 +639,7 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
         const val PREFS_NAME = "readx_reader"
         const val PREF_RECENT_URI = "recent_uri"
         const val PREF_RECENT_NAME = "recent_name"
+        const val PREF_RECENT_LIST = "recent_list_json"
     }
 }
 

@@ -55,7 +55,7 @@ fun AnimatedSplashScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
+            .background(Color(0xFF12131C)),
         contentAlignment = Alignment.Center
     ) {
         // Ambient animated orbs
@@ -239,33 +239,33 @@ private fun SplashContent(
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        // Brand name — clean, no weird spacing
+        // Brand name — clean, high-contrast white with purple glow
         Text(
             text = "ReadX",
             style = MaterialTheme.typography.displayLarge.copy(
                 fontWeight = FontWeight.Black,
                 letterSpacing = (-0.5).sp,
                 shadow = Shadow(
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-                    blurRadius = 20f * titleProgress,
+                    color = Color(0xFF8A70D6).copy(alpha = 0.5f),
+                    blurRadius = 24f * titleProgress,
                     offset = Offset(0f, 4f * titleProgress)
                 ),
                 textMotion = TextMotion.Animated
             ),
-            color = MaterialTheme.colorScheme.primary,
+            color = Color.White,
             modifier = Modifier.alpha(titleProgress)
         )
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Tagline — broader than just PDF
+        // Tagline — high-contrast light silver
         Text(
             text = "Your Intelligent Reading Space",
             style = MaterialTheme.typography.titleSmall.copy(
                 fontWeight = FontWeight.Medium,
                 letterSpacing = 0.8.sp
             ),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = Color(0xFFD1D5DB),
             modifier = Modifier.alpha(taglineProgress)
         )
 
@@ -295,8 +295,8 @@ private fun AIBadge(progress: Float, modifier: Modifier = Modifier) {
 
     Surface(
         shape = RoundedCornerShape(50),
-        color = MaterialTheme.colorScheme.tertiaryContainer.copy(
-            alpha = (progress * 0.9f).coerceIn(0f, 1f)
+        color = Color(0xFF2D2350).copy(
+            alpha = (progress * 0.95f).coerceIn(0f, 1f)
         ),
         modifier = modifier
             .scale(progress)
@@ -312,7 +312,7 @@ private fun AIBadge(progress: Float, modifier: Modifier = Modifier) {
                     .size(7.dp)
                     .scale(if (progress > 0.8f) pulse else 1f)
                     .background(
-                        color = MaterialTheme.colorScheme.tertiary,
+                        color = Color(0xFF8A70D6),
                         shape = CircleShape
                     )
             )
@@ -323,7 +323,7 @@ private fun AIBadge(progress: Float, modifier: Modifier = Modifier) {
                     fontWeight = FontWeight.SemiBold,
                     letterSpacing = 1.5.sp
                 ),
-                color = MaterialTheme.colorScheme.onTertiaryContainer
+                color = Color(0xFFC4B5FD)
             )
         }
     }

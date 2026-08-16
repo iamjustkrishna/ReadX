@@ -70,12 +70,7 @@ fun SettingsScreen(
 
     var savedMessage by remember { mutableStateOf(false) }
 
-    val availableModels = when (selectedProvider) {
-        AiProvider.GROQ -> SettingsRepository.GROQ_MODELS
-        AiProvider.GEMINI -> SettingsRepository.GEMINI_MODELS
-        AiProvider.OPENAI -> SettingsRepository.OPENAI_MODELS
-        AiProvider.ANTHROPIC -> SettingsRepository.ANTHROPIC_MODELS
-    }
+    val availableModels = settingsRepo.getModelsFor(selectedProvider)
 
     Scaffold(
         topBar = {
@@ -138,7 +133,7 @@ fun SettingsScreen(
                                 selected = selectedProvider == provider,
                                 onClick = {
                                     selectedProvider = provider
-                                    selectedModel = provider.defaultModel
+                                    selectedModel = settingsRepo.getDefaultModelFor(provider)
                                 },
                                 label = {
                                     Text(text = provider.displayName)
@@ -154,7 +149,7 @@ fun SettingsScreen(
                                 value = groqApiKey,
                                 onValueChange = { groqApiKey = it.trim() },
                                 label = { Text("Groq API Key (gsk_...) - Optional", style = MaterialTheme.typography.bodySmall) },
-                                placeholder = { Text("Using built-in default app key") },
+                                placeholder = { Text("Using built-in default app key", style = MaterialTheme.typography.bodySmall) },
                                 modifier = Modifier.fillMaxWidth(),
                                 singleLine = true,
                                 shape = RoundedCornerShape(12.dp),

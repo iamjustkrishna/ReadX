@@ -11,21 +11,16 @@ enum class AiProvider(val displayName: String) {
     GEMINI("Google Gemini"),
     OPENAI("OpenAI / ChatGPT"),
     ANTHROPIC("Anthropic Claude");
-
-    val defaultModel: String
-        get() = when (this) {
-            GROQ -> SettingsRepository.DEFAULT_GROQ_MODEL
-            GEMINI -> SettingsRepository.DEFAULT_GEMINI_MODEL
-            OPENAI -> SettingsRepository.DEFAULT_OPENAI_MODEL
-            ANTHROPIC -> SettingsRepository.DEFAULT_ANTHROPIC_MODEL
-        }
 }
 
 /**
  * Stores AI/app settings securely. API keys for Groq, Gemini, OpenAI, and Anthropic
  * are kept in EncryptedSharedPreferences; preferences in SharedPreferences.
+ * Supports dynamic remote model lists with offline fallbacks and auto-sanitization.
  */
 class SettingsRepository(context: Context) {
+
+    val dynamicConfig = DynamicAiModelConfigRepository(context)
 
     private val masterKey = MasterKey.Builder(context)
         .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
@@ -41,6 +36,18 @@ class SettingsRepository(context: Context) {
 
     private val prefs: SharedPreferences =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+    suspend fun fetchDynamicConfig(): Boolean {
+        return dynamicConfig.fetchRemoteConfig()
+    }
+
+    fun getModelsFor(provider: AiProvider): List<Pair<String, String>> {
+        return dynamicConfig.getModelsFor(provider)
+    }
+
+    fun getDefaultModelFor(provider: AiProvider): String {
+        return dynamicConfig.getDefaultModelFor(provider)
+    }
 
     // ---- Provider ----
 
@@ -123,13 +130,10 @@ class SettingsRepository(context: Context) {
     // ---- AI Model ----
 
     fun getAiModel(): String {
-        val defaultModel = when (getProvider()) {
-            AiProvider.GROQ -> DEFAULT_GROQ_MODEL
-            AiProvider.GEMINI -> DEFAULT_GEMINI_MODEL
-            AiProvider.OPENAI -> DEFAULT_OPENAI_MODEL
-            AiProvider.ANTHROPIC -> DEFAULT_ANTHROPIC_MODEL
-        }
-        return prefs.getString(KEY_AI_MODEL, defaultModel) ?: defaultModel
+        val provider = getProvider()
+        val defaultModel = dynamicConfig.getDefaultModelFor(provider)
+        val savedModel = prefs.getString(KEY_AI_MODEL, defaultModel) ?: defaultModel
+        return dynamicConfig.sanitizeModel(provider, savedModel)
     }
 
     fun setAiModel(model: String) {
@@ -149,35 +153,12 @@ class SettingsRepository(context: Context) {
         private const val KEY_AI_MODEL = "ai_model"
 
         const val DEFAULT_TRANSLATE_LANG = "Hindi"
-        const val DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile"
-        const val DEFAULT_GEMINI_MODEL = "gemini-2.0-flash"
-        const val DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
-        const val DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-20250514"
 
-        val GROQ_MODELS = listOf(
-            "llama-3.3-70b-versatile" to "Llama 3.3 70B (Fast & Intelligent)",
-            "llama3-8b-8192" to "Llama 3 8B (Ultra Fast)",
-            "mixtral-8x7b-32768" to "Mixtral 8x7B (Context)",
-            "gemma2-9b-it" to "Gemma 2 9B"
-        )
-
-        val GEMINI_MODELS = listOf(
-            "gemini-2.0-flash" to "Gemini 2.0 Flash (Fastest & Free Tier)",
-            "gemini-1.5-flash" to "Gemini 1.5 Flash (Balanced)",
-            "gemini-1.5-pro" to "Gemini 1.5 Pro (Deep Reasoning)"
-        )
-
-        val OPENAI_MODELS = listOf(
-            "gpt-4o-mini" to "GPT-4o mini (Fast & Cheap)",
-            "gpt-4o" to "GPT-4o (Flagship)",
-            "gpt-3.5-turbo" to "GPT-3.5 Turbo"
-        )
-
-        val ANTHROPIC_MODELS = listOf(
-            "claude-sonnet-4-20250514" to "Claude Sonnet 4 (Fast)",
-            "claude-opus-4-20250514" to "Claude Opus 4 (Best)",
-            "claude-haiku-35-20241022" to "Claude 3.5 Haiku (Cheapest)"
-        )
+        // Embedded fallback lists (used for static references if needed)
+        val GROQ_MODELS get() = DynamicAiModelConfigRepository.getHardcodedModels(AiProvider.GROQ)
+        val GEMINI_MODELS get() = DynamicAiModelConfigRepository.getHardcodedModels(AiProvider.GEMINI)
+        val OPENAI_MODELS get() = DynamicAiModelConfigRepository.getHardcodedModels(AiProvider.OPENAI)
+        val ANTHROPIC_MODELS get() = DynamicAiModelConfigRepository.getHardcodedModels(AiProvider.ANTHROPIC)
 
         val AVAILABLE_LANGUAGES = listOf(
             "Hindi", "Spanish", "French", "German", "Japanese",

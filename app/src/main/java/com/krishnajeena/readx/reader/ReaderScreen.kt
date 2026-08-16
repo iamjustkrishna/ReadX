@@ -175,6 +175,17 @@ fun ReaderScreen(
     val currentPage by remember {
         derivedStateOf { listState.firstVisibleItemIndex }
     }
+
+    LaunchedEffect(currentPage) {
+        viewModel.onPageVisible(currentPage, document.pageCount)
+    }
+
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        onDispose {
+            viewModel.flushReadingSession()
+        }
+    }
+
     var trackHeightPx by remember { mutableFloatStateOf(0f) }
     var handleHeightPx by remember { mutableFloatStateOf(0f) }
     var dragFraction by remember { mutableStateOf<Float?>(null) }

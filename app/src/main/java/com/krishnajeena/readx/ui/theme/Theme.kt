@@ -7,45 +7,44 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-private val CalmLightColorScheme = lightColorScheme(
-    primary = SereneSlatePrimary,
+private val ReadXLightColorScheme = lightColorScheme(
+    primary = ReadXPrimary,
     onPrimary = Color.White,
-    primaryContainer = WarmPaperSurfaceVariant,
-    onPrimaryContainer = SereneSlatePrimary,
-    secondary = SereneTealSecondary,
+    primaryContainer = ReadXSurfaceVariant,
+    onPrimaryContainer = ReadXPrimary,
+    secondary = ReadXSecondary,
     onSecondary = Color.White,
-    tertiary = WarmGoldAccent,
-    background = WarmPaperBackground,
-    onBackground = Color(0xFF1A202C),
-    surface = WarmPaperSurface,
-    onSurface = Color(0xFF2D3748),
-    surfaceVariant = WarmPaperSurfaceVariant,
-    onSurfaceVariant = Color(0xFF4A5568)
+    tertiary = ReadXAccent,
+    background = ReadXBackground,
+    onBackground = ReadXTextPrimary,
+    surface = ReadXSurface,
+    onSurface = ReadXTextPrimary,
+    surfaceVariant = ReadXSurfaceVariant,
+    onSurfaceVariant = ReadXTextSecondary
 )
 
-private val CalmDarkColorScheme = darkColorScheme(
-    primary = Color(0xFFE2E8F0),
-    onPrimary = DarkBackground,
+private val ReadXDarkColorScheme = darkColorScheme(
+    primary = ReadXSecondary,
+    onPrimary = Color.White,
     primaryContainer = DarkSurfaceVariant,
     onPrimaryContainer = Color.White,
-    secondary = Color(0xFF4FD1C5),
-    onSecondary = DarkBackground,
-    tertiary = WarmGoldAccent,
+    secondary = ReadXPrimary,
+    onSecondary = Color.White,
+    tertiary = ReadXAccent,
     background = DarkBackground,
     onBackground = Color(0xFFF7FAFC),
     surface = DarkSurface,
     onSurface = Color(0xFFEDF2F7),
     surfaceVariant = DarkSurfaceVariant,
-    onSurfaceVariant = Color(0xFFCBD5E0)
+    onSurfaceVariant = ReadXTextMuted
 )
 
 @Composable
 fun ReadXTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = false, // Keep serene curated palette
     content: @Composable () -> Unit
 ) {
-    val colorScheme = if (darkTheme) CalmDarkColorScheme else CalmLightColorScheme
+    val colorScheme = if (darkTheme) ReadXDarkColorScheme else ReadXLightColorScheme
 
     MaterialTheme(
         colorScheme = colorScheme,
