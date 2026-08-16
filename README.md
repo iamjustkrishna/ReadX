@@ -77,7 +77,7 @@ ReadX/
 
 ### Prerequisites
 - Android Studio Ladybug (or newer)
-- Android SDK 34 / 35
+- Android SDK 36 (targetSdk 36, compileSdk 36, minSdk 24)
 - NDK and CMake (installed via Android Studio SDK Manager)
 - JDK 17 or 21
 
