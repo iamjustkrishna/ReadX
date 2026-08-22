@@ -12,3 +12,15 @@ local.properties
 *.apk
 .agents/
 .gemini/
+
+# Proprietary PDF Engine
+pdfengine/
+
+# Internal Marketing, Social Posts & Strategy
+marketing/
+graphics/
+scripts/
+
+# Release binaries
+*.aab
+app/release/

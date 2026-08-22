@@ -13,15 +13,15 @@ if (localPropertiesFile.exists()) {
 val groqApiKey = localProperties.getProperty("GROQ_API_KEY") ?: ""
 
 android {
-    namespace = "com.krishnajeena.readx"
+    namespace = "space.iamjustkrishna.readx"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.krishnajeena.readx"
+        applicationId = "space.iamjustkrishna.readx"
         minSdk = 24
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 3
+        versionName = "1.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -102,6 +102,7 @@ dependencies {
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("androidx.compose.material:material-icons-extended")
+    implementation("androidx.compose.ui:ui-text-google-fonts:1.6.8")
 }
 
 
