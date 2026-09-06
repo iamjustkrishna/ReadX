@@ -1,6 +1,6 @@
 {
-  "version": 4,
-  "last_updated": "2026-08-30",
+  "version": 5,
+  "last_updated": "2026-09-06",
   "default_provider": "GROQ",
   "providers": {
     "GROQ": {
